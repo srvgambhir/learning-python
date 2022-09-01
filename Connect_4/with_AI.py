@@ -1,7 +1,9 @@
+from random import random
 import numpy as np
 import pygame
 import sys
 import math
+import random
 
 BLUE = (0, 0, 255)
 BLACK = (0, 0, 0)
@@ -10,6 +12,15 @@ YELLOW = (255, 255, 0)
 
 ROW_COUNT = 6
 COL_COUNT = 7
+
+PLAYER = 0
+AI = 1
+
+EMPTY = 0
+PLAYER_TOKEN = 1
+AI_TOKEN = 2
+
+WINDOW_LENGTH = 4
 
 def create_board():
     board = np.zeros((ROW_COUNT, COL_COUNT))
@@ -30,6 +41,8 @@ def get_next_open_row(board, col):
             return r
 
 
+def print_board(board):
+    print(np.flip(board, 0))
 
 
 def winning_move(board, token):
@@ -61,6 +74,91 @@ def winning_move(board, token):
                 c + 3] == token:
                 return True
 
+def eval_window(window, token):
+    score = 0
+
+    opp_token = PLAYER_TOKEN
+    if token == PLAYER_TOKEN:
+        opp_token = AI_TOKEN
+
+    if window.count(token) == 4:
+        score += 100
+    elif window.count(token) == 3 and window.count(EMPTY) == 1:
+        score += 10
+    elif window.count(token) == 2 and window.count(EMPTY) == 2:
+        score += 5
+
+    # Weigh us getting 3 in a row above opponent getting 3 in a row
+    if window.count(opp_token) == 3 and window.count(EMPTY) == 1:
+        score -= 80   
+
+    return score 
+
+def score_pos(board, token):
+    score = 0
+
+    # Score for center
+    center_arr = [int(i) for i in list(board[:, COL_COUNT//2])]
+    center_count = center_arr.count(token)
+    score += center_count * 6
+
+    # Score for horizontal
+    for r in range(ROW_COUNT):
+        row_arr = [int(i) for i in list(board[r,:])]
+        for c in range(COL_COUNT-3):
+            window = row_arr[c:c+WINDOW_LENGTH]
+            score += eval_window(window, token)
+
+    # Score for Vertical
+    for c in range(COL_COUNT):
+        col_arr = [int(i) for i in list(board[:,c])]
+        for r in range(ROW_COUNT-3):
+            window = col_arr[r:r+WINDOW_LENGTH]
+            score += eval_window(window, token)
+
+    # Score for positive sloped diagonals
+    for r in range(ROW_COUNT-3):
+        for c in range(COL_COUNT-3):
+            window = [board[r+i][c+i] for i in range(WINDOW_LENGTH)]
+            score += eval_window(window, token)
+
+    # Score for negative sloped diagonals
+    #
+    # Alternative nested for loop:
+    #
+    # for r in range(ROW_COUNT-3):
+    #     for c in range(COL_COUNT-3):
+    #         window = [board[r+3-i][c+i] for i in range(WINDOW_LENGTH)]
+    #
+    for r in range(ROW_COUNT-3):
+        for c in range(3,COL_COUNT):
+            window = [board[r+i][c-i] for i in range(WINDOW_LENGTH)]
+            score += eval_window(window, token)
+
+    return score
+
+def get_valid_locations(board):
+    valid_locations = []
+    for col in range(COL_COUNT):
+        if is_valid_location(board, col):
+            valid_locations.append(col)
+    return valid_locations
+
+def pick_best_move(board, token):
+    valid_locations = get_valid_locations(board)
+    best_score = -10000
+    best_col = random.choice(valid_locations)
+    for col in valid_locations:
+        row = get_next_open_row(board, col)
+        temp_board = board.copy()
+        drop_token(temp_board, row, col, token)
+        score = score_pos(temp_board, token)
+        if score > best_score:
+            best_score = score
+            best_col = col
+    return best_col
+
+
 def draw_board(board):
     for c in range(COL_COUNT):
         for r in range(ROW_COUNT):
@@ -69,9 +167,9 @@ def draw_board(board):
 
     for c in range(COL_COUNT):
         for r in range(ROW_COUNT):
-            if board[r][c] == 1:
+            if board[r][c] == PLAYER_TOKEN:
                 pygame.draw.circle(screen, RED, (int(c * SQUARESIZE + SQUARESIZE / 2), height - int(r * SQUARESIZE + SQUARESIZE / 2)), RADIUS)
-            elif board[r][c] == 2:
+            elif board[r][c] == AI_TOKEN:
                 pygame.draw.circle(screen, YELLOW, (int(c * SQUARESIZE + SQUARESIZE / 2), height - int(r * SQUARESIZE + SQUARESIZE / 2)), RADIUS)
 
     pygame.display.update()
@@ -79,7 +177,7 @@ def draw_board(board):
 
 board = create_board()
 game_over = False
-turn = 0
+turn = random.randint(PLAYER, AI)
 
 pygame.init()
 
@@ -108,48 +206,56 @@ while not game_over:
         if event.type == pygame.MOUSEMOTION:
             pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
             posx = event.pos[0]
-            if turn == 0:
+            if turn == PLAYER:
                 pygame.draw.circle(screen, RED, (posx, int(SQUARESIZE/2)), RADIUS)
-            else:
-                pygame.draw.circle(screen, YELLOW, (posx, int(SQUARESIZE / 2)), RADIUS)
+
         pygame.display.update()
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             pygame.draw.rect(screen, BLACK, (0, 0, width, SQUARESIZE))
             # print(event.pos)
             # Ask for Player 1 Input
-            if turn == 0:
+            if turn == PLAYER:
 
                 posx = event.pos[0]
                 col = int(math.floor(posx/SQUARESIZE))
 
                 if is_valid_location(board, col):
                     row = get_next_open_row(board, col)
-                    drop_token(board, row, col, 1)
+                    drop_token(board, row, col, PLAYER_TOKEN)
 
-                    if winning_move(board, 1):
+                    if winning_move(board, PLAYER_TOKEN):
                         label = myfont.render("Player 1 Wins!", 1, RED)
                         screen.blit(label, (40, 10))
                         game_over = True
+                    
+                    print_board(board)
+                    draw_board(board)
 
-            # Ask for Player 2 Input
-            else:
-                posx = event.pos[0]
-                col = int(math.floor(posx / SQUARESIZE))
+                    turn += 1
+                    turn = turn % 2
 
-                if is_valid_location(board, col):
-                    row = get_next_open_row(board, col)
-                    drop_token(board, row, col, 2)
 
-                    if winning_move(board, 2):
-                        label = myfont.render("Player 2 Wins!", 1, YELLOW)
-                        screen.blit(label, (40, 10))
-                        game_over = True
+    # Ask for Player 2 Input
+    if turn == AI and not game_over:
 
+        col = pick_best_move(board, AI_TOKEN)
+
+        if is_valid_location(board, col):
+            pygame.time.wait(500)
+            row = get_next_open_row(board, col)
+            drop_token(board, row, col, AI_TOKEN)
+
+            if winning_move(board, AI_TOKEN):
+                label = myfont.render("Player 2 Wins!", 1, YELLOW)
+                screen.blit(label, (40, 10))
+                game_over = True
+
+            print_board(board)
             draw_board(board)
 
             turn += 1
             turn = turn % 2
 
-            if game_over:
-                pygame.time.wait(3000)
+    if game_over:
+        pygame.time.wait(3000)

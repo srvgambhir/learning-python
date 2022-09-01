@@ -81,16 +81,19 @@ def eval_window(window, token):
     if token == PLAYER_TOKEN:
         opp_token = AI_TOKEN
 
+    # this condition is probably redundant
     if window.count(token) == 4:
         score += 100
+
+
     elif window.count(token) == 3 and window.count(EMPTY) == 1:
-        score += 10
-    elif window.count(token) == 2 and window.count(EMPTY) == 2:
         score += 5
+    elif window.count(token) == 2 and window.count(EMPTY) == 2:
+        score += 2
 
     # Weigh us getting 3 in a row above opponent getting 3 in a row
     if window.count(opp_token) == 3 and window.count(EMPTY) == 1:
-        score -= 80   
+        score -= 4   
 
     return score 
 
@@ -101,7 +104,7 @@ def score_pos(board, token):
     # Preference given to moves in the center column
     center_arr = [int(i) for i in list(board[:, COL_COUNT//2])]
     center_count = center_arr.count(token)
-    score += center_count * 6
+    score += center_count * 3
 
     # Score for horizontal
     for r in range(ROW_COUNT):
@@ -137,6 +140,60 @@ def score_pos(board, token):
             score += eval_window(window, token)
 
     return score
+
+def is_terminal_node(board):
+    return winning_move(board, PLAYER_TOKEN) or winning_move(board, AI_TOKEN) or len(get_valid_locations(board)) == 0
+
+
+def minimax(board, depth, alpha, beta, maximizingPlayer):
+
+    valid_locations = get_valid_locations(board)
+    is_terminal = is_terminal_node(board)
+
+    # Base case - terminal conditions
+    if depth == 0 or is_terminal:
+        if is_terminal:
+            if winning_move(board, AI_TOKEN):
+                return (1000000000000000, None)
+            elif winning_move(board, PLAYER_TOKEN):
+                return (-1000000000000000, None)
+            else: # Game is over, no more valid moves
+                return (0, None)
+        else: # Depth is zero
+            return (score_pos(board, AI_TOKEN), None)
+
+    if maximizingPlayer:
+        value = -math.inf
+        best_col = random.choice(valid_locations)
+        for col in valid_locations:
+            row = get_next_open_row(board, col)
+            temp_board = board.copy()
+            drop_token(temp_board, row, col, AI_TOKEN)
+            new_score = minimax(temp_board, depth-1, alpha, beta, False)[0]
+            if new_score > value:
+                value = new_score
+                best_col = col
+            alpha = max(alpha, value)
+            if alpha >= beta:
+                break
+        return (value, best_col)
+    
+    else: # Minimizing Player
+        value = math.inf
+        worst_col = random.choice(valid_locations)
+        for col in valid_locations:
+            row = get_next_open_row(board, col)
+            temp_board = board.copy()
+            drop_token(temp_board, row, col, PLAYER_TOKEN)
+            new_score = minimax(temp_board, depth-1, alpha, beta, True)[0]
+            if new_score < value:
+                value = new_score
+                worst_col = col
+            beta = min(beta, value)
+            if alpha >= beta:
+                break
+        return (value, worst_col)
+
 
 def get_valid_locations(board):
     valid_locations = []
@@ -240,10 +297,10 @@ while not game_over:
     # Ask for Player 2 Input
     if turn == AI and not game_over:
 
-        col = pick_best_move(board, AI_TOKEN)
+        col = minimax(board, 5, -math.inf, math.inf, True)[1]
 
         if is_valid_location(board, col):
-            pygame.time.wait(500)
+            #pygame.time.wait(500)
             row = get_next_open_row(board, col)
             drop_token(board, row, col, AI_TOKEN)
 

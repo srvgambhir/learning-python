@@ -5,7 +5,7 @@ Connect 4
 - A clone of the popular game Connect 4 created in python using pygame and numpy libraries
 - Includes both player vs. player and player vs. computer versions
 - Computer AI created using Minimax algorithm with various difficulties possible via varying node depths
-- Consulted the following resource: https://www.youtube.com/watch?v=UYgyRArKDEs
+- Consulted the following resource: https://www.youtube.com/watch?v=UYgyRArKDEs, https://www.youtube.com/watch?v=l-hh51ncgDI
 
 Developer Survey - Jupyter Notebook
 - Developer Survey results decomposed using Python on Jupyter Notebook
